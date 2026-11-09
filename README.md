@@ -13,6 +13,7 @@ A study site for CHEM 1341 (General Chemistry I) at Texas State. It covers Chapt
 - Chapter quizzes with 10 random questions each
 - Progress saved in your browser
 - A one-page cheat sheet you can print
+- **Topic search** in the header (press `/` to jump to it). Type a keyword like "Hund", "isoelectronic" or "IE" to see matching lessons, sections and worked examples; clicking one scrolls straight to that section and highlights it. It understands common abbreviations (IE, EA, Zeff, λ…), and new lessons are indexed automatically.
 
 ## Put it on GitHub Pages
 1. Create a new repository on GitHub, for example `chem1341`.

@@ -47,14 +47,15 @@
   });
 
   /* ------------------------------------------------------------ router */
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
   window.addEventListener('hashchange', route);
-  route();
 
   function route() {
     const parts = (location.hash.replace(/^#\/?/, '') || '').split('/').filter(Boolean);
-    const [a, b] = parts;
-    let tab = 'home';
+    const [a, b, c] = parts;
+    let tab = 'home', target = null;
     if (!a) renderHome();
+    else if (a === 'search') { tab = 'search'; renderSearch(decodeURIComponent(parts.slice(1).join('/') || '')); }
     else if (a === 'cheatsheet') { tab = 'cheatsheet'; renderCheatSheet(); }
     else if (a === 'katelyn') { tab = 'katelyn'; renderKatelyn(); }
     else {
@@ -66,13 +67,61 @@
         else if (b === 'quiz') renderQuiz(ch);
         else {
           const lesson = ch.lessons.find(l => l.id === b);
-          lesson ? renderLesson(ch, lesson) : renderChapter(ch);
+          if (lesson) { renderLesson(ch, lesson); target = c; } else renderChapter(ch);
         }
       }
     }
     document.querySelectorAll('#tabs a').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
     document.body.dataset.page = tab;
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    if (target !== null && target !== undefined) jumpTo(target);
+  }
+
+  /* Scroll to a section (#/ch6/6-3/1) or worked example (#/ch6/6-3/ex0) and flash it */
+  function jumpTo(target) {
+    let el = null;
+    if (/^ex\d+$/.test(target)) el = document.querySelectorAll('.lesson-body .example')[+target.slice(2)];
+    else if (/^\d+$/.test(target)) el = document.querySelectorAll('.lesson-body h3')[+target];
+    if (!el) return;
+    setTimeout(() => {
+      const y = el.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'instant' });
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    }, 30);
+  }
+
+  function renderSearch(q) {
+    const input = document.getElementById('searchInput');
+    if (input && input.value !== q) input.value = q;
+    const results = q.trim() ? SiteSearch.query(q) : [];
+    const byCh = COURSE.map(ch => ({ ch, list: results.filter(r => r.ch === ch) })).filter(g => g.list.length);
+    app.innerHTML = `
+      <section class="page-head"><div class="crumbs"><a href="#/">Home</a> › Search</div>
+        <h1>🔍 Search results</h1>
+        <form class="search-page-form" id="searchPageForm">
+          <input type="search" id="searchPageInput" value="${SiteSearch.esc(q)}" placeholder="Search for a topic, e.g. Hund's rule" aria-label="Search topics" autocomplete="off">
+          <button class="btn" type="submit">Search</button>
+        </form>
+        <p class="small muted">${q.trim() ? `${results.length} result${results.length === 1 ? '' : 's'} for “${SiteSearch.esc(q)}”` : 'Type a keyword above.'}</p>
+      </section>
+      ${byCh.map(g => `<section class="search-group"><h2>${g.ch.title}</h2>
+        <div class="sr-list">${g.list.map((r, i) => SiteSearch.resultHTML(r, i, false)).join('')}</div></section>`).join('')}
+      ${q.trim() && !results.length ? `<div class="notice">No topics matched. Try a single keyword like <em>radius</em>, <em>photon</em>, <em>orbital</em> or <em>halogen</em>.</div>` : ''}
+      ${popularTopics()}`;
+    document.getElementById('searchPageForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const v = document.getElementById('searchPageInput').value.trim();
+      if (v) location.hash = '/search/' + encodeURIComponent(v);
+    });
+    if (!q.trim()) document.getElementById('searchPageInput').focus();
+  }
+
+  function popularTopics() {
+    const topics = ['photon energy', 'Bohr model', 'de Broglie', 'uncertainty', 'quantum numbers', 'orbital shapes',
+      "Hund's rule", 'Pauli', 'exceptions', 'unpaired electrons', 'Zeff', 'atomic radius', 'isoelectronic',
+      'ionization energy', 'electron affinity', 'metal oxides', 'alkali metals', 'halogens', 'noble gases'];
+    return `<section class="popular"><div class="small muted">Popular topics</div>
+      <div class="chips">${topics.map(t => `<a class="chip" href="#/search/${encodeURIComponent(t)}">${t}</a>`).join('')}</div></section>`;
   }
 
   /* ------------------------------------------------------------ pages */
@@ -99,6 +148,11 @@
         <div class="how-step"><span>3</span><strong>Skip anytime</strong><p>Just reviewing? Skip questions, or switch on <strong>Review mode</strong> (top right) to see every answer.</p></div>
       </section>
       <section class="ch-cards">${cards}</section>
+      <section class="home-search">
+        <h3>🔍 Looking for something specific?</h3>
+        <p class="small muted">Use the search bar at the top (or press <kbd>/</kbd>), or jump straight to a popular topic:</p>
+        ${popularTopics()}
+      </section>
       <section class="home-extra">
         <a class="btn" href="#/cheatsheet">📄 Open the cheat sheet</a>
         <button class="btn ghost" id="resetBtn">Reset my progress</button>
@@ -481,4 +535,6 @@
   }
   function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
   function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+
+  route(); // initial render (after everything above is defined)
 })();
